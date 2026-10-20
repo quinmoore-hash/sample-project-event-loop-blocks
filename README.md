@@ -18,6 +18,8 @@ The saved CPU profiles can then be inspected to determine which functions were r
 
 [main.mjs](main.mjs) contains a sample HTTP application that serves `{"ok": true}` to all requests, except if the route is `/loop` in which case the application will loop infinitely and refuse all other requests.
 
+The `/loop` route is a fault-injection demo and is **disabled by default** (it returns 404). It is only enabled when the `LOOP_ROUTE_TOKEN` environment variable is set, and then only for requests that send a matching `X-Loop-Token` header. Never set `LOOP_ROUTE_TOKEN` in a deployment reachable by untrusted clients.
+
 [Dockerfile](Dockerfile) is a minimal build that runs the sample application plus detection tools.
 
 [crash-report.sh](crash-report.sh) will run when the container is requested to terminate. It will generate a crash report that identifies the looping code. This can be triggered with a Ctrl+C after `docker run`.
@@ -26,9 +28,10 @@ The saved CPU profiles can then be inspected to determine which functions were r
 
 ## Try it out
 
-Build and run the application. It will listen on localhost:8001. Crash report files will show up in the current directory.
+Build and run the application with the `/loop` demo route enabled. It will listen on localhost:8001. Crash report files will show up in the current directory.
 ```sh
-docker run --rm --publish 8001:8001 --mount type=bind,src=.,dst=/crash-reports $(docker build --quiet .)
+export LOOP_ROUTE_TOKEN="$(openssl rand -hex 16)"
+docker run --rm --publish 127.0.0.1:8001:8001 --env LOOP_ROUTE_TOKEN --mount type=bind,src=.,dst=/crash-reports $(docker build --quiet .)
 # listening
 ```
 
@@ -42,7 +45,7 @@ seq 1 50 | xargs -I_ -n1 -P10 curl http://localhost:8001/ok
 
 Send a request that triggers the problematic code.
 ```sh
-curl -v --max-time 5 http://localhost:8001/loop
+curl -v --max-time 5 -H "X-Loop-Token: $LOOP_ROUTE_TOKEN" http://localhost:8001/loop
 # GET /loop
 ```
 

@@ -1,4 +1,6 @@
+import { once } from 'node:events'
 import { createServer } from 'node:http'
+import { Worker } from 'node:worker_threads'
 
 function routeOk(req, res) {
   setTimeout(() => {
@@ -25,6 +27,19 @@ function serve(req, res) {
   } else {
     routeOk(req, res);
   }
+}
+
+if (process.env.CRASH_REPORT_TRIGGER) {
+  const profiler = new Worker(new URL('./profiler-worker.mjs', import.meta.url), {
+    workerData: {
+      triggerPath: process.env.CRASH_REPORT_TRIGGER,
+      reportDir: process.env.CRASH_REPORT_DIR ?? '/crash-reports',
+    },
+  })
+  profiler.on('error', (err) => console.error('[PROFILER] Worker failed:', err))
+  profiler.unref()
+  // Don't accept requests until the profiler is attached; it can't attach once the loop is blocked.
+  await once(profiler, 'message').catch(() => {})
 }
 
 createServer(serve).listen(8001, () => console.log('listening'));

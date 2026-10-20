@@ -1,8 +1,6 @@
 #!/bin/sh
 set -u
 
-NODE_PID="$1"
-
 if curl --silent --max-time 5 "http://localhost:8001/health" >/dev/null; then
   exit 0
 fi
@@ -14,22 +12,16 @@ echo "[ENTRYPOINT] Service is terminating while unhealthy. Capturing crash repor
 
 mkdir -p /crash-reports
 cd /crash-reports
+rm -f node.cpuprofile
 
-NODE_DISABLE_COLORS=1
-expect <<EOF
-  set timeout 30
-  spawn node inspect -p $NODE_PID
-  expect "debug>"
-  send "profile\r"
-  expect "debug>"
-  sleep 5
-  send "profileEnd\r"
-  expect "debug>"
-  send "profiles\[0\].save()\r"
-  expect "debug>"
-  send ".exit\r"
-  expect eof
-EOF
+# The app's profiler worker (profiler-worker.mjs) watches for this file, profiles the
+# main thread for 5 seconds, and writes /crash-reports/node.cpuprofile.
+touch "$CRASH_REPORT_TRIGGER"
+
+for _ in $(seq 1 30); do
+  [ -f node.cpuprofile ] && break
+  sleep 1
+done
 
 CPU_PROFILE=$(ls *.cpuprofile 2>/dev/null | head -1)
 if [ -z "$CPU_PROFILE" ]; then

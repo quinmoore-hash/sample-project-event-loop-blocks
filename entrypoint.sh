@@ -1,12 +1,16 @@
 #!/bin/sh
 set -u
 
-node main.mjs &
+# Private (0700) directory used by crash-report.sh to ask the app to capture a profile.
+CRASH_REPORT_TRIGGER="$(mktemp -d)/capture-request"
+export CRASH_REPORT_TRIGGER
+
+node --disable-sigusr1 main.mjs &
 NODE_PID="$!"
 
 terminate() {
   echo "[ENTRYPOINT] Termination request received."
-  /crash-report.sh "$NODE_PID" || true
+  /crash-report.sh || true
   echo "[ENTRYPOINT] Terminating main process."
   kill -TERM "$NODE_PID" 2>/dev/null || true
   wait "$NODE_PID"

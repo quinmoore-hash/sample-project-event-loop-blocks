@@ -8,9 +8,11 @@ This strategy targets [Node](https://nodejs.org/en) processes that are running i
 
 ## Strategy
 
-When the container running the Node process is requested to terminate, first probe the process to determine if the container is terminating while the process is healthy. If the process is unhealthy, capture a Node CPU profile using the [Node debugger](https://nodejs.org/api/debugger.html) and upload it to durable storage. Then terminate the main process and allow the container to exit.
+When the container running the Node process is requested to terminate, first probe the process to determine if the container is terminating while the process is healthy. If the process is unhealthy, capture a Node CPU profile using the [Node inspector API](https://nodejs.org/api/inspector.html) and upload it to durable storage. Then terminate the main process and allow the container to exit.
 
 This core strategy is demonstrated in [crash-report.sh](crash-report.sh).
+
+The profile is taken in-process by a worker thread ([profiler-worker.mjs](profiler-worker.mjs)) that connects to the main thread's inspector with `inspector.Session.connectToMainThread()` at startup. No inspector port is ever opened: Node runs with `--disable-sigusr1`, so neither `node inspect -p` nor a `SIGUSR1` can start the unauthenticated debugger on `127.0.0.1:9229`, which any process sharing the container's network namespace (e.g. a sidecar) could otherwise use to run code in the app. The worker is asked to capture a profile through a request file in a private (`0700`) directory created by [entrypoint.sh](entrypoint.sh), and the container runs as the unprivileged `node` user.
 
 The saved CPU profiles can then be inspected to determine which functions were running at the time of termination. Functions contributing to an infinite loop will have consumed most of the CPU time and will be obvious in a flame graph analysis.
 
@@ -24,11 +26,13 @@ The saved CPU profiles can then be inspected to determine which functions were r
 
 [entrypoint.sh](entrypoint.sh) exists only to route signals between the container's main process, the Node process, and the inspection program.
 
+[profiler-worker.mjs](profiler-worker.mjs) runs in a worker thread and records the main thread's CPU profile when [crash-report.sh](crash-report.sh) requests it.
+
 ## Try it out
 
 Build and run the application. It will listen on localhost:8001. Crash report files will show up in the current directory.
 ```sh
-docker run --rm --publish 8001:8001 --mount type=bind,src=.,dst=/crash-reports $(docker build --quiet .)
+docker run --rm --user "$(id -u):$(id -g)" --publish 8001:8001 --mount type=bind,src=.,dst=/crash-reports $(docker build --quiet .)
 # listening
 ```
 
@@ -51,8 +55,6 @@ Terminate the application with a Ctrl+C in the docker terminal and watch it capt
 ^C
 # [ENTRYPOINT] Termination request received.
 # [ENTRYPOINT] Service is terminating while unhealthy. Capturing crash report.
-# spawn node inspect -p 7
-# ...
 # [ENTRYPOINT] Crash report completed.
 # [ENTRYPOINT] Terminating main process.
 ```

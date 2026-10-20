@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import { Worker } from 'node:worker_threads'
 
 function routeOk(req, res) {
   setTimeout(() => {
@@ -25,6 +26,15 @@ function serve(req, res) {
   } else {
     routeOk(req, res);
   }
+}
+
+if (process.env.CRASH_REPORT_TRIGGER) {
+  new Worker(new URL('./profiler-worker.mjs', import.meta.url), {
+    workerData: {
+      triggerPath: process.env.CRASH_REPORT_TRIGGER,
+      reportDir: process.env.CRASH_REPORT_DIR ?? '/crash-reports',
+    },
+  }).unref()
 }
 
 createServer(serve).listen(8001, () => console.log('listening'));

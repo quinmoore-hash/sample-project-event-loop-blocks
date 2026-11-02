@@ -28,9 +28,13 @@ The saved CPU profiles can then be inspected to determine which functions were r
 
 Build and run the application. It will listen on localhost:8001. Crash report files will show up in the current directory.
 ```sh
-docker run --rm --publish 8001:8001 --mount type=bind,src=.,dst=/crash-reports $(docker build --quiet .)
+docker run --rm --user "$(id -u):$(id -g)" --publish 8001:8001 --mount type=bind,src=.,dst=/crash-reports $(docker build --quiet .)
 # listening
 ```
+
+The container runs as a non-root user (`node` by default, or your own uid with `--user` so the bind-mounted directory is writable and the reports are owned by you).
+
+> **Security note:** capturing the CPU profile attaches the Node debugger, which opens the unauthenticated Node inspector on `127.0.0.1:9229` inside the container for the few seconds of the capture (capped at 20 seconds). Anything that shares the container's network namespace (a sidecar in the same pod, `--network host`, `--network container:<id>`) can connect to it and run code as the app user. Do not run this container alongside untrusted workloads in the same network namespace while this tooling is enabled.
 
 In another terminal, send some sample "good" requests to verify the application is running.
 ```sh

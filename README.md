@@ -16,7 +16,7 @@ The saved CPU profiles can then be inspected to determine which functions were r
 
 ## Demonstration
 
-[main.mjs](main.mjs) contains a sample HTTP application that serves `{"ok": true}` to all requests, except if the route is `/loop` in which case the application will loop infinitely and refuse all other requests.
+[main.mjs](main.mjs) contains a sample HTTP application that serves `{"ok": true}` to all requests, except if the route is `/loop` in which case the application will loop infinitely and refuse all other requests. The `/loop` route is only registered when the `DEMO_LOOP=1` environment variable is set; without it, `/loop` is answered like any other route. Never set `DEMO_LOOP=1` outside a local demo, since one request to `/loop` takes the service offline.
 
 [Dockerfile](Dockerfile) is a minimal build that runs the sample application plus detection tools.
 
@@ -26,10 +26,10 @@ The saved CPU profiles can then be inspected to determine which functions were r
 
 ## Try it out
 
-Build and run the application. It will listen on localhost:8001. Crash report files will show up in the current directory.
+Build and run the application with the demo loop enabled. It will listen on localhost:8001. Crash report files will show up in the current directory.
 ```sh
-docker run --rm --publish 8001:8001 --mount type=bind,src=.,dst=/crash-reports $(docker build --quiet .)
-# listening
+docker run --rm --env DEMO_LOOP=1 --publish 127.0.0.1:8001:8001 --mount type=bind,src=.,dst=/crash-reports $(docker build --quiet .)
+# listening (DEMO_LOOP=1: /loop blocks the event loop)
 ```
 
 In another terminal, send some sample "good" requests to verify the application is running.

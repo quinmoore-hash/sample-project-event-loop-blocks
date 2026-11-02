@@ -18,13 +18,15 @@ function routeLoop(req, res) {
   }
 }
 
+const DEMO_LOOP = process.env.DEMO_LOOP === '1';
+
 function serve(req, res) {
   console.log(new Date(), req.method, req.url);
-  if (req.url?.toString() === '/loop') {
+  if (DEMO_LOOP && req.url?.toString() === '/loop') {
     routeLoop(req, res);
   } else {
     routeOk(req, res);
   }
 }
 
-createServer(serve).listen(8001, () => console.log('listening'));
+createServer(serve).listen(8001, () => console.log('listening', DEMO_LOOP ? '(DEMO_LOOP=1: /loop blocks the event loop)' : ''));

@@ -11,14 +11,20 @@ echo "[ENTRYPOINT] Service is terminating while unhealthy. Capturing crash repor
 
 # This script runs in the service container before the termination signal is given to the process.
 # You can add any report-gathering or diagnostic tools here.
+#
+# Attaching the debugger opens the unauthenticated Node inspector on 127.0.0.1:9229 until the
+# process exits, so keep the window short: every debugger step fails fast and the whole session
+# is capped. The container runs as a non-root user and must not share its network namespace
+# with untrusted workloads.
 
 mkdir -p /crash-reports
 cd /crash-reports
 
 NODE_DISABLE_COLORS=1
-expect <<EOF
-  set timeout 30
+timeout 20 expect <<EOF
+  set timeout 10
   spawn node inspect -p $NODE_PID
+  expect_after timeout { exit 1 } eof { exit 1 }
   expect "debug>"
   send "profile\r"
   expect "debug>"
